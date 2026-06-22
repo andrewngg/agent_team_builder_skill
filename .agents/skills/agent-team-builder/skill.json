@@ -1,0 +1,27 @@
+{
+  "name": "agent-team-builder",
+  "version": "1.0.0",
+  "description": "通过 7 步结构化问答引导用户从零设计多 Agent 协作团队，最终输出可直接部署的 agents_team_spec.md",
+  "author": "Agent Team Builder Contributors",
+  "triggers": [
+    "多Agent协作",
+    "agent team",
+    "Sub Agent",
+    "团队设计",
+    "agent workflow",
+    "角色划分",
+    "通信协议",
+    "责任矩阵",
+    "agents_team_spec",
+    "multi-agent",
+    "agent collaboration",
+    "build agent",
+    "design agent",
+    "闭环",
+    "Manager Agent",
+    "验收Agent"
+  ],
+  "tags": ["agent-teams", "collaboration", "orchestration", "parallel-work", "multi-agent", "中文", "cross-platform"],
+  "category": "productivity",
+  "platforms": ["kun", "chatgpt", "claude-code", "deepseek", "cursor", "hermes", "gemini"]
+}
