@@ -254,6 +254,107 @@ triggers:
 }
 ```
 
+### Agent 定义 YAML 规范（平台无关）
+
+受 GearTrain 启发，以下结构化 Agent 定义格式可作为 `agents_team_spec.md` 中 markdown 表格的补充输出，使 Agent 定义可直接被机器解析：
+
+```yaml
+# Agent 定义规范 v1
+schema_version: 1
+name: 选题Agent
+description: "挖掘热点、制定选题列表，交付给内容Agent和素材Agent"
+role: executor  # executor | reviewer | manager | hybrid
+
+# 模型提示（平台实现时按需映射到具体模型名）
+model_hints:
+  reasoning: strong    # 需深度推理 → 映射到强模型
+  default: balanced    # 常规任务 → 映射到平衡模型
+  fast: fast           # 简单/摘要任务 → 映射到快速模型
+
+# 工具权限
+tools:
+  - search            # 关键词检索
+  - data_analysis     # 数据分析
+  - memory_read       # 读取记忆
+  - memory_write      # 写入记忆
+deny_tools: []        # 显式禁止的工具（安全约束）
+
+# 系统提示（支持 ${variable} 变量插值）
+system_prompt: |
+  你是 ${project.name} 项目的选题Agent。
+  职责：${agent.role_description}
+  输入来源：${agent.inputs}
+  产出交付：${agent.outputs}
+  遵循 workspace 记忆中的内容规范。
+
+# 输入/输出契约
+inputs:
+  - from: human
+    format: json
+    schema: { interests: [string], platform: string }
+outputs:
+  - to: [内容Agent, 素材Agent]
+    format: json
+    schema: { topics: [{title: string, angle: string, priority: int}] }
+
+# 记忆读写范围
+memory:
+  read:  [workspace, workflow]      # 可读：团队约定 + 当前工作流上下文
+  write: [workflow, agent_instance] # 可写：当前工作流 + 自身任务状态
+
+# 验收配置
+acceptance:
+  reviewer: 复盘Agent               # 验收者
+  criteria: ["选题数量>=5", "每个选题有明确的切入角度"]
+  max_retries: 3                    # 最大重试次数
+  on_permanent_failure: escalate_to_human
+
+# 运行策略
+runtime_policy:
+  timeout_seconds: 600
+  retry_on_error: true
+  max_retries: 3
+```
+
+**字段说明：**
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `schema_version` | int | 规范版本号，当前为 1 |
+| `name` | string | Agent 唯一标识，匹配 `^[a-zA-Z][a-zA-Z0-9]*$` |
+| `role` | enum | `executor` 执行者 / `reviewer` 验收者 / `manager` 管理者 / `hybrid` 混合型 |
+| `model_hints` | object | 模型能力提示，平台实现时按需映射到具体模型名 |
+| `tools` | list | 允许使用的工具列表 |
+| `deny_tools` | list | 显式禁止的工具（安全约束） |
+| `system_prompt` | string | 支持 `${variable}` 插值的系统提示 |
+| `inputs` | list | 输入来源及格式契约 |
+| `outputs` | list | 输出目标及格式契约 |
+| `memory` | object | 记忆读写范围声明（见下方记忆范围定义） |
+| `acceptance` | object | 验收者、验收标准、失败处理 |
+| `runtime_policy` | object | 运行时超时、重试等策略 |
+
+### 人机交互检查点类型（HIL Checkpoints）
+
+在验收与修复闭环中，将人类介入点形式化为以下四种类型：
+
+| 类型 | 说明 | 适用场景 | 示例 |
+|---|---|---|---|
+| **Approval** (批准) | 二元 yes/no，决定是否继续 | 高风险操作前 | "是否通过安全审查并继续部署?" |
+| **Choice** (选择) | 从 Agent 提供的选项中选择 | 多方案决策 | "选择部署策略：A) 蓝绿 B) 金丝雀 C) 滚动" |
+| **Input** (输入) | 向人类请求自由形式的信息 | 需求澄清、信息补充 | "请补充目标用户的年龄范围和地域分布" |
+| **Review** (审查) | 检查 Agent 输出并批准/拒绝/修改 | 代码审查、内容审核 | "审查代码变更：批准合并 / 要求修改 / 拒绝" |
+
+每个检查点应定义：超时时间、默认行为（超时后自动批准/拒绝/升级）、升级路径。
+
+### 记忆范围定义（Memory Scopes）
+
+| 范围 | 英文 | 读写权限 | 生命周期 | 存储内容示例 |
+|---|---|---|---|---|
+| **工作空间** | workspace | 所有 Agent 可读，Manager 可写 | 跨项目持久 | 团队约定、编码规范、环境配置、项目术语表 |
+| **工作流** | workflow | 当前运行内所有 Agent 可读写 | 单次工作流运行 | 任务分配表、共享决策、阶段状态、上下文传递 |
+| **Agent 实例** | agent_instance | 仅当前 Agent 可读写 | 单次 Agent 调用 | 当前任务状态、已尝试方案、中间产出、错误日志 |
+| **Agent 级别** | agent_level | 同类型 Agent 可读写 | 跨项目持久 | 该角色积累的经验模式、最佳实践、自改进提示 |
+
 ### 给 Manager Agent 的初始启动 Prompt 模板（可直接复制）
 
 ```
